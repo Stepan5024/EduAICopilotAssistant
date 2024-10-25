@@ -12,14 +12,20 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 from pathlib import Path
+import os
 
 # Конфигурация базы данных
-DATABASE_URL = "postgresql://user:password@db/dbname"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://user:password@db/dbname")
+if os.getenv("TESTING"):
+    DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Модель пользователя
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -27,26 +33,33 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
+
 # Создание таблиц
 Base.metadata.create_all(bind=engine)
 
 # Pydantic модели
+
+
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+
 
 class UserResponse(BaseModel):
     id: int
     username: str
     email: str
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     username: Optional[str] = None
+
 
 # Настройка безопасности
 SECRET_KEY = "your_secret_key"
@@ -57,11 +70,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Утилиты для работы с паролями и токенами
+
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password):
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -73,8 +90,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+
 def get_user(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
+
 
 def authenticate_user(db: Session, username: str, password: str):
     user = get_user(db, username)
@@ -84,6 +103,7 @@ def authenticate_user(db: Session, username: str, password: str):
         return False
     return user
 
+
 # FastAPI приложение
 app = FastAPI()
 
@@ -91,6 +111,8 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Зависимости
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -99,19 +121,24 @@ def get_db():
         db.close()
 
 # Маршрут для регистрации
+
+
 @app.post("/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
+    new_user = User(username=user.username, email=user.email,
+                    hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
 
 # Маршрут для получения токена
+
+
 @app.post("/token", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = authenticate_user(db, form_data.username, form_data.password)
@@ -128,6 +155,8 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     return {"access_token": access_token, "token_type": "bearer"}
 
 # Зависимость для получения текущего пользователя
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -148,14 +177,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 # Пример защищенного маршрута
+
+
 @app.get("/users/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return UserResponse(id=current_user.id, username=current_user.username, email=current_user.email)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
     index_file = Path("app/static/index.html")
     return index_file.read_text()
+
+
+@app.post("/login")
+async def login():
+    return {"message": "Вход успешен"}
+
 
 @app.post("/login")
 async def login():
