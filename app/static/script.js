@@ -14,7 +14,7 @@ document.getElementById('register-form').addEventListener('submit', function(eve
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
     
-    fetch('http://localhost:8000/register', {  // Обновите URL
+    fetch('http://localhost:8000/register', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -23,10 +23,10 @@ document.getElementById('register-form').addEventListener('submit', function(eve
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert('Регистрация успешна!');
+        if (data.username) {
+            showWelcomeScreen(data.username);
         } else {
-            alert('Ошибка регистрации: ' + data.message);
+            alert('Ошибка регистрации: ' + data.detail);
         }
     });
 });
@@ -37,7 +37,7 @@ document.getElementById('login-form').addEventListener('submit', function(event)
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     
-    fetch('http://localhost:8000/login', {  // Обновите URL
+    fetch('http://localhost:8000/login', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -46,10 +46,19 @@ document.getElementById('login-form').addEventListener('submit', function(event)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert('Вход успешен!');
+        if (data.message === "Вход успешен") {
+            showWelcomeScreen(email);
         } else {
             alert('Ошибка входа: ' + data.message);
         }
     });
 });
+
+function showWelcomeScreen(username) {
+    document.getElementById('welcome-username').innerText = username;
+    openTab('welcome');
+}
+
+function logout() {
+    openTab('login');
+}

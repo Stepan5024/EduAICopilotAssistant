@@ -24,6 +24,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
 # Создание таблиц
@@ -32,13 +33,13 @@ Base.metadata.create_all(bind=engine)
 # Pydantic модели
 class UserCreate(BaseModel):
     username: str
+    email: str
     password: str
 
 class UserResponse(BaseModel):
+    id: int
     username: str
-
-class UserInDB(UserCreate):
-    hashed_password: str
+    email: str
 
 class Token(BaseModel):
     access_token: str
@@ -100,15 +101,15 @@ def get_db():
 # Маршрут для регистрации
 @app.post("/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = get_user(db, user.username)
+    db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = get_password_hash(user.password)
-    db_user = User(username=user.username, hashed_password=hashed_password)
-    db.add(db_user)
+    new_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
+    db.add(new_user)
     db.commit()
-    db.refresh(db_user)
-    return UserResponse(username=db_user.username)
+    db.refresh(new_user)
+    return new_user
 
 # Маршрут для получения токена
 @app.post("/token", response_model=Token)
@@ -149,17 +150,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # Пример защищенного маршрута
 @app.get("/users/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    return UserResponse(username=current_user.username)
+    return UserResponse(id=current_user.id, username=current_user.username, email=current_user.email)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
     index_file = Path("app/static/index.html")
     return index_file.read_text()
-
-# Пример маршрута для API
-@app.post("/register")
-async def register():
-    return {"message": "Регистрация успешна"}
 
 @app.post("/login")
 async def login():
